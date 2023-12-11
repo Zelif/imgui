@@ -39,9 +39,7 @@
 #include "imgui_impl_wgpu.h"
 #include <limits.h>
 #include <webgpu/webgpu.h>
-// ------ ISSUE ---------
-#include <webgpu/webgpu_glfw.h>
-// ----------------------
+#include <memory>
 
 // Dear ImGui prototypes from imgui_internal.h
 extern ImGuiID ImHashData(const void* data_p, size_t data_size, ImU32 seed = 0);
@@ -817,20 +815,36 @@ void ImGui_ImplWGPU_NewFrame()
 
 static void ImGui_ImplWGPU_CreateWindow(ImGuiViewport* viewport)
 {
-    ImGui_ImplWGPU_Data* bd = ImGui_ImplWGPU_GetBackendData();
-    ImGui_ImplWGPU_ViewportData* vd = IM_NEW(ImGui_ImplWGPU_ViewportData)();
-    viewport->RendererUserData = vd;
+	ImGui_ImplWGPU_Data* bd = ImGui_ImplWGPU_GetBackendData();
+	ImGui_ImplWGPU_ViewportData* vd = IM_NEW(ImGui_ImplWGPU_ViewportData)();
+	viewport->RendererUserData = vd;
 
-    // ------------------- ISSUE using webgpu_cpp.h -------------------------------
-    // Only working with GLFW
-    auto window = (GLFWwindow*)viewport->PlatformHandle;
+    WGPUChainedStruct chainedDescriptor = {};
+    // ------ ISSUE unknow for linux and apple -------------
+#ifdef _WIN32
+    chainedDescriptor.sType = WGPUSType_SurfaceDescriptorFromWindowsHWND;
+    std::unique_ptr<WGPUSurfaceDescriptorFromWindowsHWND> surfaceDescFromHandle = std::make_unique<WGPUSurfaceDescriptorFromWindowsHWND>();
+    surfaceDescFromHandle->hwnd = viewport->PlatformHandleRaw;
+#elif defined(__APPLE__)
+    chainedDescriptor.sType = WGPUSType_SurfaceDescriptorFromMetalLayer;
+    std::unique_ptr<WGPUSurfaceDescriptorFromMetalLayer> surfaceDescFromHandle = std::make_unique<WGPUSurfaceDescriptorFromMetalLayer>();
+    surfaceDescFromHandle->layer = viewport->PlatformHandleRaw;
+#elif defined(DAWN_USE_WAYLAND)
+    chainedDescriptor.sType = WGPUSType_SurfaceDescriptorFromWindowsHWND;
+    std::unique_ptr<WGPUSurfaceDescriptorFromWaylandSurface> surfaceDescFromHandle = std::make_unique<WGPUSurfaceDescriptorFromWaylandSurface>();
+    surfaceDescFromHandle->display = {};
+    surfaceDescFromHandle->surface = {};
+#elif defined(DAWN_USE_X11)
+    chainedDescriptor.sType = WGPUSType_SurfaceDescriptorFromXlibWindow;
+    std::unique_ptr<WGPUSurfaceDescriptorFromXlibWindow> surfaceDescFromHandle = std::make_unique<WGPUSurfaceDescriptorFromXlibWindow>();
+    surfaceDescFromHandle->display = {};
+    surfaceDescFromHandle->window = {};
+#endif
+    // ------------------------------------------------------
 
-    std::unique_ptr<wgpu::ChainedStruct> chainedDescriptor =
-        wgpu::glfw::SetupWindowAndGetSurfaceDescriptor(window);
-
+    surfaceDescFromHandle->chain = chainedDescriptor;
     WGPUSurfaceDescriptor surfaceDescriptor = {};
-    surfaceDescriptor.nextInChain = (const WGPUChainedStruct*)chainedDescriptor.get();
-    // ----------------------------------------------------------------------------
+    surfaceDescriptor.nextInChain = &surfaceDescFromHandle->chain;
 
     vd->Window.surface = wgpuInstanceCreateSurface(bd->wgpuInstance, &surfaceDescriptor);
 
