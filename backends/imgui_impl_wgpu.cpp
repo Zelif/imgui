@@ -874,38 +874,35 @@ static void ImGui_ImplWGPU_SetWindowSize(ImGuiViewport* viewport, ImVec2 size)
     vd->Window.swapChain = wgpuDeviceCreateSwapChain(bd->wgpuDevice, vd->Window.surface, &swapDescriptor);
 }
 
-// ----------- ISSUE using webgpu_cpp.h -------------------------
 static void ImGui_ImplWGPU_RenderWindow(ImGuiViewport* viewport, void*)
 {
     ImGui_ImplWGPU_Data* bd = ImGui_ImplWGPU_GetBackendData();
     ImGui_ImplWGPU_ViewportData* vd = (ImGui_ImplWGPU_ViewportData*)viewport->RendererUserData;
 
-    wgpu::Device device = bd->wgpuDevice;
-    wgpu::SwapChain swapChain = vd->Window.swapChain;
+    ImVec4 clear_color = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
+    WGPURenderPassColorAttachment color_attachments = {};
+    color_attachments.view = wgpuSwapChainGetCurrentTextureView(vd->Window.swapChain);
+    color_attachments.loadOp = WGPULoadOp_Clear;
+    color_attachments.storeOp = WGPUStoreOp_Store;
+    color_attachments.clearValue = { clear_color.x * clear_color.w, clear_color.y * clear_color.w, clear_color.z * clear_color.w, clear_color.w };
 
-    ImVec4 clear_color = ImVec4(1.0f, 0.0f, 0.0f, 1.0f);
-    wgpu::RenderPassColorAttachment attachment = {};
-    attachment.view = swapChain.GetCurrentTextureView();
-    attachment.loadOp = wgpu::LoadOp::Clear;
-    attachment.storeOp = wgpu::StoreOp::Store;
-    attachment.clearValue = { clear_color.x, clear_color.y, clear_color.z, clear_color.w };
+    WGPURenderPassDescriptor render_pass_desc = {};
+    render_pass_desc.colorAttachmentCount = 1;
+    render_pass_desc.colorAttachments = &color_attachments;
+    render_pass_desc.depthStencilAttachment = nullptr;
 
-    wgpu::RenderPassDescriptor renderpassDesc = {};
-    renderpassDesc.colorAttachmentCount = 1;
-    renderpassDesc.colorAttachments = &attachment;
+    WGPUCommandEncoderDescriptor enc_desc = {};
+    WGPUCommandEncoder encoder = wgpuDeviceCreateCommandEncoder(bd->wgpuDevice, &enc_desc);
 
-    wgpu::CommandEncoder encoder = device.CreateCommandEncoder();
-    wgpu::RenderPassEncoder renderpass = encoder.BeginRenderPass(&renderpassDesc);
+    WGPURenderPassEncoder pass = wgpuCommandEncoderBeginRenderPass(encoder, &render_pass_desc);
+    ImGui_ImplWGPU_RenderDrawData(viewport->DrawData, pass);
+    wgpuRenderPassEncoderEnd(pass);
 
-    ImGui_ImplWGPU_RenderDrawData(viewport->DrawData, renderpass.Get());
-
-    renderpass.End();
-
-    wgpu::CommandBuffer command1 = encoder.Finish();
-
-    device.GetQueue().Submit(1, &command1);
+    WGPUCommandBufferDescriptor cmd_buffer_desc = {};
+    WGPUCommandBuffer cmd_buffer = wgpuCommandEncoderFinish(encoder, &cmd_buffer_desc);
+    WGPUQueue queue = wgpuDeviceGetQueue(bd->wgpuDevice);
+    wgpuQueueSubmit(queue, 1, &cmd_buffer);
 }
-// -------------------------------------------------------------
 
 static void ImGui_ImplWGPU_SwapBuffers(ImGuiViewport* viewport, void*)
 {
