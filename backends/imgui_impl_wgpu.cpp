@@ -828,17 +828,25 @@ static void ImGui_ImplWGPU_CreateWindow(ImGuiViewport* viewport)
 #elif defined(__APPLE__)
     chainedDescriptor.sType = WGPUSType_SurfaceDescriptorFromMetalLayer;
     std::unique_ptr<WGPUSurfaceDescriptorFromMetalLayer> surfaceDescFromHandle = std::make_unique<WGPUSurfaceDescriptorFromMetalLayer>();
-    surfaceDescFromHandle->layer = viewport->PlatformHandleRaw;
+    NSWindow* ns_window = viewport->PlatformHandleRaw;
+    [ns_window.contentView setWantsLayer : YES];
+    metal_layer = [CAMetalLayer layer];
+    [ns_window.contentView setLayer : metal_layer] ;
+    surfaceDescFromHandle->layer = metal_layer;
 #elif defined(DAWN_USE_WAYLAND)
-    chainedDescriptor.sType = WGPUSType_SurfaceDescriptorFromWindowsHWND;
-    std::unique_ptr<WGPUSurfaceDescriptorFromWaylandSurface> surfaceDescFromHandle = std::make_unique<WGPUSurfaceDescriptorFromWaylandSurface>();
-    surfaceDescFromHandle->display = {};
-    surfaceDescFromHandle->surface = {};
+    //struct wl_display* wayland_display = glfwGetWaylandDisplay();
+    //struct wl_surface* wayland_surface = glfwGetWaylandWindow(window);
+    //chainedDescriptor.sType = WGPUSType_SurfaceDescriptorFromWindowsHWND;
+    //std::unique_ptr<WGPUSurfaceDescriptorFromWaylandSurface> surfaceDescFromHandle = std::make_unique<WGPUSurfaceDescriptorFromWaylandSurface>();
+    //surfaceDescFromHandle->display = wayland_display;
+    //surfaceDescFromHandle->surface = wayland_surface;
 #elif defined(DAWN_USE_X11)
-    chainedDescriptor.sType = WGPUSType_SurfaceDescriptorFromXlibWindow;
-    std::unique_ptr<WGPUSurfaceDescriptorFromXlibWindow> surfaceDescFromHandle = std::make_unique<WGPUSurfaceDescriptorFromXlibWindow>();
-    surfaceDescFromHandle->display = {};
-    surfaceDescFromHandle->window = {};
+    //Display* x11_display = glfwGetX11Display();
+    //Window x11_window = glfwGetX11Window(window);
+    //chainedDescriptor.sType = WGPUSType_SurfaceDescriptorFromXlibWindow;
+    //std::unique_ptr<WGPUSurfaceDescriptorFromXlibWindow> surfaceDescFromHandle = std::make_unique<WGPUSurfaceDescriptorFromXlibWindow>();
+    //surfaceDescFromHandle->display = x11_display;
+    //surfaceDescFromHandle->window = x11_window;
 #endif
     // ------------------------------------------------------
 
